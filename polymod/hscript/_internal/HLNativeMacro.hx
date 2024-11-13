@@ -83,8 +83,7 @@ class HLNativeMacro
     {
       $
       {
-        // TODO: Do we need to use the class pack here?
-        returnsVoid ? (macro $i{fieldName}($a{callArgs})) : (macro return $p{[cls.name, fieldName]}($a{callArgs}))
+        returnsVoid ? (macro $p{[cls.name, fieldName]}($a{callArgs})) : (macro return $p{[cls.name, fieldName]}($a{callArgs}))
       }
     }
     var printer = new Printer();
