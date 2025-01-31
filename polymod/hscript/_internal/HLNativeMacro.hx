@@ -1,6 +1,7 @@
 package polymod.hscript._internal;
 
-import haxe.macro.Printer;
+import haxe.macro.MacroStringTools;
+import haxe.macro.TypedExprTools;
 import haxe.macro.Context;
 import haxe.macro.Expr;
 import haxe.macro.Type;
@@ -9,17 +10,24 @@ using Lambda;
 using haxe.macro.TypeTools;
 using haxe.macro.ComplexTypeTools;
 using haxe.macro.ExprTools;
+using StringTools;
 
-#if !macro
+#if (!macro && hl)
 @:build(polymod.hscript._internal.HLNativeMacro.buildWrapperClass())
-class HLMath extends Math {
+class HLMath extends Math {}
 
+@:build(polymod.hscript._internal.HLNativeMacro.buildWrapperClass())
+class HLStd extends Std {
+  public static inline function instance
+
+  public static inline function downcast<T:{}, S:T>(value:T, c:Class<S>):S {
+    return Std.downcast(value, c);
+  }
 }
-#end
+#else
 
-#if macro
 /**
- * Macro that generates wrapper fields for a class with @:hlNative functions to make them avaliable to Polymod
+ * Macro that generates wrapper fields for substitutes of `std` classes to make them avaliable to Reflection
  */
 class HLNativeMacro
 {
@@ -34,20 +42,38 @@ class HLNativeMacro
 
     for (field in cls.statics.get())
     {
-      if (field.meta.get().exists(function(m) return m.name == ':hlNative')) {
+      if (field.isPublic) {
         var wrapper = generateWrapper(field, cls);
-        buildFields.push(wrapper);
+        if (wrapper != null)
+          buildFields.push(wrapper);
       }
     }
 
     return buildFields;
   }
 
-  static function generateWrapper(field:ClassField, cls:ClassType) {
+  static function generateWrapper(field:ClassField, cls:ClassType):Field {
     var fieldName = field.name;
 
-    if (field == null || field.expr() == null)
-      throw 'Field or field TypedExpr is null';
+    if (field == null)
+      throw 'Field is null';
+
+    if (field.name.contains("instance")) return null;
+
+    if (field.expr() == null)
+    {
+      if (field.isExtern) return null;
+
+      var varType = Context.toComplexType(field.type);
+      return {
+        name: fieldName,
+        doc: field.doc,
+        meta: null,
+        pos: field.pos,
+        access: [APublic, AStatic],
+        kind: FVar(varType, Context.parseInlineString('${cls.name}.${fieldName}', field.pos))
+      };
+    }
 
     var funcArgs:Array<FunctionArg> = [];
     var retType:Type = null;
@@ -68,15 +94,16 @@ class HLNativeMacro
             }
             retType = tfunc.t;
         default:
-            throw 'Expected a function type for the field ${fieldName}';
+            throw 'Expected a function or variable type for the field ${fieldName}';
     }
 
-    var returnsVoid = doesReturnVoid(TypeTools.toComplexType(retType));
+    var returnsVoid = doesReturnVoid(Context.toComplexType(retType));
 
+    Context.info('Generating wrapper for ${cls.name}.${fieldName}', field.pos);
     // Create new parameters for the wrapper function that match the original method
     var callArgs:Array<Expr> = [for (arg in funcArgs) macro $i{arg.name}];
     var params = [for (param in field.params) {name: param.name}];
-    var funcRet = returnsVoid ? null : TypeTools.toComplexType(retType);
+    var funcRet = returnsVoid ? null : Context.toComplexType(retType);
 
     // Define the wrapper Field
     var expr = macro
@@ -86,8 +113,6 @@ class HLNativeMacro
         returnsVoid ? (macro $p{[cls.name, fieldName]}($a{callArgs})) : (macro return $p{[cls.name, fieldName]}($a{callArgs}))
       }
     }
-    var printer = new Printer();
-    Context.info(printer.printExpr(expr), Context.currentPos());
     return {
         name: fieldName,
         doc: field.doc,
