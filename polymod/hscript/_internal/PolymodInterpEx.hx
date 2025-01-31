@@ -21,8 +21,8 @@ class PolymodInterpEx extends Interp
 	{
 		super();
 		_proxy = proxy;
-		variables.set("Math", #if hl HLNativeMacro.HLMath #else Math #end);
-		variables.set("Std", #if hl HLNativeMacro.HLStd #else Std #end);
+		variables.set("Math", #if hl HLWrapperMacro.HLMath #else Math #end);
+		variables.set("Std", #if hl HLWrapperMacro.HLStd #else Std #end);
 		this.targetCls = targetCls;
 	}
 

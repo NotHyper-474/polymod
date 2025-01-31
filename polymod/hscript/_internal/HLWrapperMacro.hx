@@ -13,13 +13,11 @@ using haxe.macro.ExprTools;
 using StringTools;
 
 #if (!macro && hl)
-@:build(polymod.hscript._internal.HLNativeMacro.buildWrapperClass())
+@:build(polymod.hscript._internal.HLWrapperMacro.buildWrapperClass())
 class HLMath extends Math {}
 
-@:build(polymod.hscript._internal.HLNativeMacro.buildWrapperClass())
+@:build(polymod.hscript._internal.HLWrapperMacro.buildWrapperClass())
 class HLStd extends Std {
-  public static inline function instance
-
   public static inline function downcast<T:{}, S:T>(value:T, c:Class<S>):S {
     return Std.downcast(value, c);
   }
@@ -29,7 +27,7 @@ class HLStd extends Std {
 /**
  * Macro that generates wrapper fields for substitutes of `std` classes to make them avaliable to Reflection
  */
-class HLNativeMacro
+class HLWrapperMacro
 {
   public static macro function buildWrapperClass():Array<Field>
   {
