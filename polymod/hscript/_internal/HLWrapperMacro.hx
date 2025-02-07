@@ -17,6 +17,7 @@ using StringTools;
 class HLMath extends Math {}
 
 @:build(polymod.hscript._internal.HLWrapperMacro.buildWrapperClass())
+@:haxe.warning("-WDeprecated")
 class HLStd extends Std {
   public static inline function downcast<T:{}, S:T>(value:T, c:Class<S>):S {
     return Std.downcast(value, c);
@@ -97,7 +98,6 @@ class HLWrapperMacro
 
     var returnsVoid = doesReturnVoid(Context.toComplexType(retType));
 
-    Context.info('Generating wrapper for ${cls.name}.${fieldName}', field.pos);
     // Create new parameters for the wrapper function that match the original method
     var callArgs:Array<Expr> = [for (arg in funcArgs) macro $i{arg.name}];
     var params = [for (param in field.params) {name: param.name}];
