@@ -234,8 +234,8 @@ class PolymodConfig
 	 * If true, ZIP mods' assets will be loaded in a case-insensitive way.
 	 * For example, if trying to load an asset called `FOO.txt`, a file called `foo.txt` will be loaded if it exists.
 	 * 
-	 * Disable this option by settings the `POLYMOD_ZIP_INSENSITIVE` Haxe define at compile time,
-	 * or by settings this value in your code.
+	 * Enable this option by setting the `POLYMOD_ZIP_INSENSITIVE` Haxe define at compile time,
+	 * or by setting this value in your code.
 	 * 
 	 * @default `false`
 	 */
