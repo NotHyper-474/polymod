@@ -19,8 +19,13 @@ class HLMath extends Math {}
 @:build(polymod.hscript._internal.HLWrapperMacro.buildWrapperClass())
 @:haxe.warning("-WDeprecated")
 class HLStd extends Std {
+  // TODO: Learn how to deparameterize the types on these functions instead of doing this
   public static inline function downcast<T:{}, S:T>(value:T, c:Class<S>):S {
     return Std.downcast(value, c);
+  }
+
+  public static inline function instance<T:{}, S:T>(value:T, c:Class<S>):S {
+    return Std.instance(value, c);
   }
 }
 #else
@@ -41,7 +46,7 @@ class HLWrapperMacro
 
     for (field in cls.statics.get())
     {
-      if (field.isPublic) {
+      if (field.isPublic && !buildFields.exists((f) -> f.name == field.name)) {
         var wrapper = generateWrapper(field, cls);
         if (wrapper != null)
           buildFields.push(wrapper);
@@ -52,12 +57,10 @@ class HLWrapperMacro
   }
 
   static function generateWrapper(field:ClassField, cls:ClassType):Field {
-    var fieldName = field.name;
-
     if (field == null)
       throw 'Field is null';
 
-    if (field.name.contains("instance")) return null;
+    var fieldName = field.name;
 
     if (field.expr() == null)
     {
