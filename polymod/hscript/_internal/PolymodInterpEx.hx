@@ -153,15 +153,16 @@ class PolymodInterpEx extends Interp
 			return proxy.callFunction(f, args);
 		}
 
-		var func = get(o, f);
-
 		@:privateAccess
 		{
 			if (_proxy != null && _proxy._cachedUsingFunctions.exists(f))
 			{
-				return _proxy._cachedUsingFunctions[f]([o].concat(args));
+				var func = _proxy._cachedUsingFunctions[f];
+				if (func.type == null || Std.isOfType(o, func.type)) return func.func([o].concat(args));
 			}
 		}
+
+		var func = get(o, f);
 
 		// Workaround for an HTML5-specific issue.
 		// https://github.com/HaxeFoundation/haxe/issues/11298

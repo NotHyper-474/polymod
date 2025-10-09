@@ -1,12 +1,15 @@
 package polymod.hscript._internal;
 
 #if hscript
+import haxe.Constraints.Function;
+import haxe.rtti.Rtti;
 import hscript.Expr.FieldDecl;
 import hscript.Expr.FunctionDecl;
 import hscript.Expr.VarDecl;
 import hscript.Printer;
 import polymod.hscript._internal.PolymodClassDeclEx;
 
+using haxe.rtti.CType.CTypeTools;
 using StringTools;
 
 enum Param
@@ -885,7 +888,7 @@ class PolymodScriptClass
 	private var _cachedSuperFunctionDecls:Map<String, Dynamic> = [];
 	private var _cachedFunctionDecls:Map<String, FunctionDecl> = [];
 	private var _cachedVarDecls:Map<String, VarDecl> = [];
-	private var _cachedUsingFunctions:Map<String, Dynamic> = [];
+	private var _cachedUsingFunctions:Map<String, {type:Null<Class<Dynamic>>, func:Dynamic}> = [];
 
 	private function buildCaches()
 	{
@@ -895,20 +898,46 @@ class PolymodScriptClass
 		_cachedVarDecls.clear();
 		_cachedUsingFunctions.clear();
 
-		for (n => u in _c.usings)
+		for (_ => u in _c.usings)
 		{
-			var fields = Type.getClassFields(u.cls);
-			if (fields.length == 0) continue;
-
-			for (fld in fields)
+			if (Rtti.hasRtti(u.cls))
 			{
-				var func:Dynamic = function(params:Array<Dynamic>)
+				var fields = Rtti.getRtti(u.cls).statics;
+				if (fields.length == 0) continue;
+
+				for (fld in fields)
 				{
-					var prop:Dynamic = Reflect.getProperty(u.cls, fld);
-					return Reflect.callMethod(u.cls, prop, params);
+					var usingType:Null<Class<Dynamic>> = null;
+					switch (fld.type)
+					{
+						case CFunction(args, _): usingType = Type.resolveClass(args[0].t.toString());
+						default:
+					}
+					var func:Dynamic = function(params:Array<Dynamic>)
+					{
+						var prop:Dynamic = Reflect.getProperty(u.cls, fld.name);
+						return Reflect.callMethod(u.cls, prop, params);
+					}
+
+					_cachedUsingFunctions.set(fld.name, { type: usingType, func: func });
 				}
-					
-				_cachedUsingFunctions.set(fld, func);
+			}
+			else
+			{
+				// We make fields for it anyway and pray they work on other targets
+				var fields = Type.getClassFields(u.cls);
+				if (fields.length == 0) continue;
+
+				for (fld in fields)
+				{
+					var func:Dynamic = function(params:Array<Dynamic>)
+					{
+						var prop:Dynamic = Reflect.getProperty(u.cls, fld);
+						return Reflect.callMethod(u.cls, prop, params);
+					}
+
+					_cachedUsingFunctions.set(fld, { type: null, func: func });
+				}
 			}
 		}
 
