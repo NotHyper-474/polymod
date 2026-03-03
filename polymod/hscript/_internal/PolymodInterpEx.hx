@@ -1700,7 +1700,15 @@ class PolymodInterpEx extends Interp
       {
         name = cls.pkg.join('.') + "." + name;
       }
-      return PolymodScriptClass.getScriptClassStaticField(name, id);
+      
+      try
+      {
+        return PolymodScriptClass.getScriptClassStaticField(name, id);
+      }
+      catch(_)
+      {
+        // Skip and let it error below instead.
+      }
     }
 
     // If we're here, the field definitely doesn't exist.
