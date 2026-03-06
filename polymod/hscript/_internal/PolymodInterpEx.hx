@@ -1799,8 +1799,10 @@ class PolymodInterpEx extends Interp
 
     if (fn != null)
     {
-      // Populate function arguments.
+      // Ensure errors are reported from this function's position.
+      this.curExpr = fn.expr;
 
+      // Populate function arguments.
       var previousClassDecl = _classDeclOverride;
       // previousValues is used to restore variables after they are shadowed in the local scope.
       var previousValues:Map<String, Dynamic> = setFunctionValues(fn, args, fnName);

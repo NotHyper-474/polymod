@@ -585,6 +585,9 @@ class PolymodScriptClass
 
     if (fn != null)
     {
+      // Ensure errors are reported from this function's position.
+      _interp.curExpr = fn.expr;
+
       // previousValues is used to restore variables after they are shadowed in the local scope.
       var previousValues:Map<String, Dynamic> = _interp.setFunctionValues(fn, args, fnName);
 
