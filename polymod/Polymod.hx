@@ -9,6 +9,7 @@ import thx.semver.VersionRule;
 import polymod.format.JsonHelp;
 import polymod.format.ParseRules;
 import polymod.fs.PolymodFileSystem;
+import polymod.hscript._internal.Interp;
 import polymod.hscript._internal.Parser;
 import polymod.hscript._internal.PolymodScriptClass;
 import polymod.util.DependencyUtil;
@@ -207,6 +208,7 @@ enum Framework
  */
 @:allow(polymod.hscript._internal.PolymodScriptClass)
 @:allow(polymod.PolymodAssets)
+@:nullSafety
 class Polymod
 {
   /**
@@ -218,19 +220,19 @@ class Polymod
   /**
    * The internal asset library used by Polymod.
    */
-  static var assetLibrary:PolymodAssetLibrary = null;
+  static var assetLibrary:Null<PolymodAssetLibrary> = null;
 
   #if firetongue
   /**
    * A FireTongue instance for Polymod to hook into for asset localization support.
    */
-  static var tongue:FireTongue = null;
+  static var tongue:Null<FireTongue> = null;
   #end
 
   /**
    * The PolymodParams used when `init()` was last called.
    */
-  static var prevParams:PolymodParams = null;
+  static var prevParams:Null<PolymodParams> = null;
 
   /**
    * The mods loaded when `init()` was last called.
@@ -253,7 +255,7 @@ class Polymod
     var modRoot = params.modRoot;
     if (modRoot == null)
     {
-      if (params.fileSystemParams.modRoot != null)
+      if (params.fileSystemParams != null && params.fileSystemParams.modRoot != null)
       {
         modRoot = params.fileSystemParams.modRoot;
       }
@@ -266,10 +268,12 @@ class Polymod
     params.modIds ??= [];
     params.dirs ??= [];
     params.ignoredFiles ??= [];
-
-    if (params.fileSystemParams == null) params.fileSystemParams = {modRoot: modRoot};
-    if (params.fileSystemParams.modRoot == null) params.fileSystemParams.modRoot = modRoot;
-    if (params.apiVersionRule == null) params.apiVersionRule = VersionUtil.DEFAULT_VERSION_RULE;
+    params.apiVersionRule ??= VersionUtil.DEFAULT_VERSION_RULE;
+    params.skipDependencyChecks ??= false;
+    params.useScriptedClasses ??= false;
+    params.loadScriptsAsync ??= false;
+    params.fileSystemParams ??= {modRoot: modRoot};
+    params.fileSystemParams.modRoot ??= modRoot;
     var fileSystem = PolymodFileSystem.makeFileSystem(params.customFilesystem, params.fileSystemParams);
 
     // Fetch mod metadata and exclude broken mods.
@@ -281,7 +285,7 @@ class Polymod
       {
         var modId:Null<String> = params.modIds[i];
         if (modId == null) continue;
-        var meta:ModMetadata = fileSystem.getMetadataByModId(modId);
+        var meta:Null<ModMetadata> = fileSystem.getMetadataByModId(modId);
 
         if (meta != null)
         {
@@ -301,7 +305,7 @@ class Polymod
       for (i in 0...params.dirs.length)
       {
         var modDir:Null<String> = params.dirs[i];
-        var meta:ModMetadata = fileSystem.getMetadataByModDir(modDir);
+        var meta:Null<ModMetadata> = fileSystem.getMetadataByModDir(modDir);
 
         if (meta != null)
         {
@@ -320,7 +324,7 @@ class Polymod
     // Sort mods by dependencies.
     var sortedModsToLoad:Array<ModMetadata> = modsToLoad;
 
-    if (!params.skipDependencyChecks)
+    if (params.skipDependencyChecks)
     {
       sortedModsToLoad = DependencyUtil.sortByDependencies(modsToLoad, params.skipDependencyErrors);
       sortedModsToLoad ??= [];
@@ -358,7 +362,7 @@ class Polymod
     if (assetLibrary == null)
     {
       // Polymod failed to initialize.
-      return null;
+      return [];
     }
 
     // If we're here... Polymod initialized successfully!
@@ -396,7 +400,7 @@ class Polymod
       {
         Polymod.registerAllScriptClasses();
 
-        var classList = polymod.hscript._internal.PolymodScriptClass.listScriptClasses();
+        var classList = PolymodScriptClass.listScriptClasses();
         Polymod.info(SCRIPT_PARSE_DONE, 'Parsed and registered ${classList.length} scripted classes.');
       }
     }
@@ -412,7 +416,8 @@ class Polymod
     return sortedModsToLoad;
   }
 
-  static function cleanupAssetLibrary():Void {
+  static function cleanupAssetLibrary():Void
+  {
     if (assetLibrary == null) return;
 
     var fileSystem = assetLibrary.fileSystem;
@@ -429,6 +434,11 @@ class Polymod
 
   public static function getLoadedModDirs():Array<String>
   {
+    if (assetLibrary == null)
+    {
+      Polymod.warning(POLYMOD_NOT_INITIALIZED, 'Polymod is not loaded yet, cannot return loaded mod directories.', INIT);
+      return [];
+    }
     return assetLibrary.modDirs;
   }
 
@@ -465,9 +475,9 @@ class Polymod
       return [];
     }
 
-    var newParams = Reflect.copy(prevParams);
+    var newParams:PolymodParams = Reflect.copy(prevParams) ?? throw 'Could not copy previous parameters.';
     // Add the mod to the list of mods to load.
-    newParams.modIds = newParams.modIds.concat([modId]);
+    newParams.modIds = (newParams.modIds ?? []).concat([modId]);
     // Keep the same file system between reloads.
     newParams.customFilesystem = assetLibrary.fileSystem;
 
@@ -493,9 +503,9 @@ class Polymod
       return [];
     }
 
-    var newParams = Reflect.copy(prevParams);
+    var newParams:PolymodParams = Reflect.copy(prevParams) ?? throw 'Could not copy previous parameters.';
     // Add the mod to the list of mods to load.
-    newParams.dirs = newParams.dirs.concat([modDir]);
+    newParams.dirs = (newParams.dirs ?? []).concat([modDir]);
     // Keep the same file system between reloads.
     newParams.customFilesystem = assetLibrary.fileSystem;
 
@@ -521,9 +531,9 @@ class Polymod
       return [];
     }
 
-    var newParams = Reflect.copy(prevParams);
+    var newParams:PolymodParams = Reflect.copy(prevParams) ?? throw 'Could not copy previous parameters.';
     // Add the mods to the list of mods to load.
-    newParams.modIds = newParams.modIds.concat(modIds);
+    newParams.modIds = (newParams.modIds ?? []).concat(modIds);
     // Keep the same file system between reloads.
     newParams.customFilesystem = assetLibrary.fileSystem;
 
@@ -549,9 +559,9 @@ class Polymod
       return [];
     }
 
-    var newParams = Reflect.copy(prevParams);
+    var newParams:PolymodParams = Reflect.copy(prevParams) ?? throw 'Could not copy previous parameters.';
     // Add the mods to the list of mods to load.
-    newParams.dirs = newParams.dirs.concat(modDirs);
+    newParams.dirs = (newParams.dirs ?? []).concat(modDirs);
     // Keep the same file system between reloads.
     newParams.customFilesystem = assetLibrary.fileSystem;
 
@@ -577,7 +587,7 @@ class Polymod
       return [];
     }
 
-    var newParams = Reflect.copy(prevParams);
+    var newParams:PolymodParams = Reflect.copy(prevParams) ?? throw 'Could not copy previous parameters.';
     // Set the list of mods to load.
     newParams.modIds = modIds;
     // Keep the same file system between reloads.
@@ -605,7 +615,7 @@ class Polymod
       return [];
     }
 
-    var newParams = Reflect.copy(prevParams);
+    var newParams:PolymodParams = Reflect.copy(prevParams) ?? throw 'Could not copy previous parameters.';
     // Set the list of mods to load.
     newParams.dirs = modDirs;
     // Keep the same file system between reloads.
@@ -625,7 +635,13 @@ class Polymod
    */
   public static function reload():Array<ModMetadata>
   {
-    var newParams = Reflect.copy(prevParams);
+    if (assetLibrary == null || prevParams == null)
+    {
+      Polymod.warning(POLYMOD_NOT_INITIALIZED, 'Polymod is not loaded yet, it cannot be reloaded.', INIT);
+      return [];
+    }
+
+    var newParams:PolymodParams = Reflect.copy(prevParams) ?? throw 'Could not copy previous parameters.';
     // Keep the same file system between reloads.
     newParams.customFilesystem = assetLibrary.fileSystem;
     return Polymod.init(newParams);
@@ -651,9 +667,9 @@ class Polymod
       return [];
     }
 
-    var newParams = Reflect.copy(prevParams);
+    var newParams:PolymodParams = Reflect.copy(prevParams) ?? throw 'Could not copy previous parameters.';
     // Add the mod to the list of mods to load.
-    newParams.dirs.remove(dir);
+    newParams.dirs?.remove(dir);
     // Keep the same file system between reloads.
     newParams.customFilesystem = assetLibrary.fileSystem;
 
@@ -680,11 +696,14 @@ class Polymod
       return [];
     }
 
-    var newParams = Reflect.copy(prevParams);
-    // Add the mod to the list of mods to load.
-    for (dir in modDirs)
+    var newParams:PolymodParams = Reflect.copy(prevParams) ?? throw 'Could not copy previous parameters.';
+    if (newParams.dirs != null)
     {
-      newParams.dirs.remove(dir);
+      // Add the mod to the list of mods to load.
+      for (dir in modDirs)
+      {
+        newParams.dirs.remove(dir);
+      }
     }
     // Keep the same file system between reloads.
     newParams.customFilesystem = assetLibrary.fileSystem;
@@ -702,13 +721,13 @@ class Polymod
   public static function unloadAllMods():Void
   {
     // Check if Polymod is loaded.
-    if (assetLibrary == null)
+    if (prevParams == null || assetLibrary == null)
     {
       Polymod.warning(POLYMOD_NOT_INITIALIZED, 'Polymod is not loaded yet, cannot clear mods.', INIT);
       return;
     }
 
-    var newParams = Reflect.copy(prevParams);
+    var newParams:PolymodParams = Reflect.copy(prevParams) ?? throw 'Could not copy previous parameters.';
     // Clear the modlist.
     newParams.dirs = [];
     // Keep the same file system between reloads.
@@ -767,7 +786,7 @@ class Polymod
         return [];
       }
 
-      return assetLibrary.fileSystem.scanMods(prevParams.apiVersionRule);
+      return assetLibrary.fileSystem.scanMods(prevParams?.apiVersionRule);
     }
     else
     {
@@ -836,8 +855,7 @@ class Polymod
    */
   public static function clearScripts():Void
   {
-    @:privateAccess
-    polymod.hscript._internal.PolymodScriptClass.clearScriptedClasses();
+    PolymodScriptClass.clearScriptedClasses();
     polymod.hscript._internal.PolymodEnum.clearScriptedEnums();
     #if hscript_typer
     polymod.hscript._internal.PolymodTyperEx.clearAllModules();
@@ -850,41 +868,44 @@ class Polymod
    */
   public static function registerAllScriptClasses():Void
   {
-    @:privateAccess {
-      // Go through each script and parse any classes in them.
-      var potentialScripts:Array<String> = Polymod.assetLibrary.list(TEXT);
-      var libraryIds:Array<String> = Polymod.assetLibrary.listLibraries();
-
-      for (textPath in potentialScripts)
-      {
-        if (PolymodConfig.scriptClassExt.exists(ext -> textPath.endsWith(ext)))
-        {
-          var path = textPath;
-          if (!Polymod.assetLibrary.exists(path))
-          {
-            for (libraryId in libraryIds)
-            {
-              if (Polymod.assetLibrary.exists('$libraryId:$textPath'))
-              {
-                path = '$libraryId:$textPath';
-                break;
-              }
-            }
-            if (!Polymod.assetLibrary.exists(path)) throw 'Couldn\'t find file "$textPath"';
-          }
-          Polymod.debug('Registering scripted class "$path"');
-          polymod.hscript._internal.PolymodScriptClass.registerScriptClassByPath(path);
-        }
-      }
-
-      #if hscript_typer
-      // in the future typed modules might have a use
-      // but for now we just ignore the typed modules that are returned
-      var _ = polymod.hscript._internal.PolymodTyperEx.typeAllModules();
-      #end
-
-      polymod.hscript._internal.Interp.validateImports();
+    if (assetLibrary == null)
+    {
+      Polymod.warning(POLYMOD_NOT_INITIALIZED, 'Polymod is not loaded yet, cannot register script classes.', INIT);
+      return;
     }
+    // Go through each script and parse any classes in them.
+    var potentialScripts:Array<String> = assetLibrary.list(TEXT);
+    var libraryIds:Array<String> = assetLibrary.listLibraries();
+
+    for (textPath in potentialScripts)
+    {
+      if (PolymodConfig.scriptClassExt.exists(ext -> textPath.endsWith(ext)))
+      {
+        var path = textPath;
+        if (!assetLibrary.exists(path))
+        {
+          for (libraryId in libraryIds)
+          {
+            if (assetLibrary.exists('$libraryId:$textPath'))
+            {
+              path = '$libraryId:$textPath';
+              break;
+            }
+          }
+          if (!assetLibrary.exists(path)) throw 'Couldn\'t find file "$textPath"';
+        }
+        Polymod.debug('Registering scripted class "$path"');
+        PolymodScriptClass.registerScriptClassByPath(path);
+      }
+    }
+
+    #if hscript_typer
+    // in the future typed modules might have a use
+    // but for now we just ignore the typed modules that are returned
+    var _ = polymod.hscript._internal.PolymodTyperEx.typeAllModules();
+    #end
+
+    Interp.validateImports();
   }
 
   /**
@@ -894,9 +915,15 @@ class Polymod
   #if lime
   public static function registerAllScriptClassesAsync():Array<lime.app.Future<Bool>>
   {
+    if (assetLibrary == null)
+    {
+      Polymod.warning(POLYMOD_NOT_INITIALIZED, 'Polymod is not loaded yet, cannot register script classes asynchronously.', INIT);
+      return [];
+    }
+
     // Go through each script and parse any classes in them.
-    var potentialScripts:Array<String> = Polymod.assetLibrary.list(TEXT);
-    var libraryIds:Array<String> = Polymod.assetLibrary.listLibraries();
+    var potentialScripts:Array<String> = assetLibrary.list(TEXT);
+    var libraryIds:Array<String> = assetLibrary.listLibraries();
 
     var futures:Array<lime.app.Future<Bool>> = [];
     for (textPath in potentialScripts)
@@ -904,25 +931,25 @@ class Polymod
       if (PolymodConfig.scriptClassExt.exists(ext -> textPath.endsWith(ext)))
       {
         var path = textPath;
-        if (!Polymod.assetLibrary.exists(path))
+        if (!assetLibrary.exists(path))
         {
           for (libraryId in libraryIds)
           {
-            if (Polymod.assetLibrary.exists('$libraryId:$textPath'))
+            if (assetLibrary.exists('$libraryId:$textPath'))
             {
               path = '$libraryId:$textPath';
               break;
             }
           }
-          if (!Polymod.assetLibrary.exists(path)) throw 'Couldn\'t find file "$textPath" (tried libraries ${libraryIds})';
+          if (!assetLibrary.exists(path)) throw 'Couldn\'t find file "$textPath" (tried libraries ${libraryIds})';
         }
         Polymod.debug('Fetching scripted class "$path"');
-        var future = polymod.hscript._internal.PolymodScriptClass.registerScriptClassByPathAsync(path);
+        var future = PolymodScriptClass.registerScriptClassByPathAsync(path);
         if (future != null) futures.push(future);
       }
     }
 
-    polymod.hscript._internal.Interp.validateImports();
+    Interp.validateImports();
 
     return futures;
   }
@@ -983,6 +1010,7 @@ class Polymod
   {
     if (onError != null && PolymodConfig.debug)
     {
+      @:nullSafety(Off)
       onError(new PolymodError(PolymodErrorType.DEBUG, null, message, UNKNOWN));
     }
   }
@@ -1008,9 +1036,9 @@ class Polymod
   /**
    * When a scripted class defines an import, you can define another class which should be imported instead.
    * @param importAlias The full import path to use as an alias, as a string.
-   * @param importClass The class type to import instead.
+   * @param importClass The class type to import instead, can be `null` to blacklist it.
    */
-  public static function addImportAlias(importAlias:String, importClass:Class<Dynamic>):Void
+  public static inline function addImportAlias(importAlias:String, ?importClass:Class<Dynamic>):Void
   {
     PolymodScriptClass.importOverrides.set(importAlias, importClass);
   }
@@ -1019,7 +1047,7 @@ class Polymod
    * Remove an import alias previously defined by `addImportAlias()`.
    * @param importAlias The full import class to use as an alias, to be removed.
    */
-  public static function removeImportAlias(importAlias:String):Void
+  public static inline function removeImportAlias(importAlias:String):Void
   {
     PolymodScriptClass.importOverrides.remove(importAlias);
   }
@@ -1029,7 +1057,7 @@ class Polymod
    * @param importClass The class type to import.
    * @param importAlias (optional) The alias to use for the import. If not provided, the full class path will be used.
    */
-  public static function addDefaultImport(importClass:Class<Dynamic>, ?importAlias:String):Void
+  public static inline function addDefaultImport(importClass:Class<Dynamic>, ?importAlias:String):Void
   {
     PolymodScriptClass.defaultImports.set(importAlias == null ? Type.getClassName(importClass) : importAlias, importClass);
   }
@@ -1038,7 +1066,7 @@ class Polymod
    * When a scripted class define an import, you can blacklist it from being imported.
    * @param importPath The full import path to blacklist, as a string.
    */
-  public static function blacklistImport(importPath:String):Void
+  public static inline function blacklistImport(importPath:String):Void
   {
     addImportAlias(importPath, null);
   }
@@ -1048,7 +1076,7 @@ class Polymod
    * @param parentClass The class type with the fields.
    * @param fields The static fields you want to blacklist.
    */
-  public static function blacklistStaticFields(parentClass:Class<Dynamic>, fields:Array<String>):Void
+  public static inline function blacklistStaticFields(parentClass:Class<Dynamic>, fields:Array<String>):Void
   {
     PolymodScriptClass.blacklistedStaticFields.set(parentClass, fields);
   }
@@ -1058,7 +1086,7 @@ class Polymod
    * @param parentClass The class type with the fields.
    * @param fields The instance fields you want to blacklist.
    */
-  public static function blacklistInstanceFields(parentClass:Class<Dynamic>, fields:Array<String>):Void
+  public static inline function blacklistInstanceFields(parentClass:Class<Dynamic>, fields:Array<String>):Void
   {
     PolymodScriptClass.blacklistedInstanceFields.set(Type.getClassName(parentClass), fields);
   }
@@ -1341,7 +1369,7 @@ class PolymodError
    */
   public var origin:PolymodErrorOrigin;
 
-  public function new(severity:PolymodErrorType, code:PolymodErrorCode, message:String, ?origin:PolymodErrorOrigin = UNKNOWN)
+  public function new(severity:PolymodErrorType, code:PolymodErrorCode, message:String, origin:PolymodErrorOrigin = UNKNOWN)
   {
     this.severity = severity;
     this.code = code;

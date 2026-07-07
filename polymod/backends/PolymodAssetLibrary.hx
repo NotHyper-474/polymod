@@ -23,6 +23,7 @@ using StringTools;
  */
 @:allow(polymod.Polymod)
 @:access(polymod.PolymodAssets)
+//@:nullSafety
 class PolymodAssetLibrary
 {
   public var backend(default, null):IBackend;
@@ -31,7 +32,7 @@ class PolymodAssetLibrary
   public var assetTypes(default, null):Map<String, PolymodAssetType>;
   public var typeLibraries(default, null):Map<String, Array<String>>;
 
-  public var assetPrefix(default, null):String = "assets/";
+  public var assetPrefix(default, null):String = 'assets/';
   public var modIds:Array<String> = [];
   public var modDirs:Array<String> = [];
   public var ignoredFiles:Array<String> = [];
@@ -54,7 +55,7 @@ class PolymodAssetLibrary
   var textCache:Map<String, String> = [];
 
   #if firetongue
-  private var tongue:FireTongue = null;
+  private var tongue:Null<FireTongue> = null;
 
   /**
    * The directory where all the FireTongue locales are stored.
@@ -232,12 +233,12 @@ class PolymodAssetLibrary
 
   function clearCaches():Void
   {
-    dirCache = [];
-    ignoredFilesCache = [];
-    fileExistsCache = [];
-    assetTypeCache = [];
+    dirCache.clear();
+    ignoredFilesCache.clear();
+    fileExistsCache.clear();
+    assetTypeCache.clear();
     allFilesCache = null;
-    textCache = [];
+    textCache.clear();
   }
 
   /**
@@ -1009,7 +1010,7 @@ class PolymodAssetLibrary
       var assetType = getAssetType(ext);
       assetTypes.set(f, assetType);
       if (!typeLibraries.exists(libraryId)) typeLibraries.set(libraryId, []);
-      typeLibraries.get(libraryId).push(f);
+      typeLibraries[libraryId].push(f);
       #if openfl
       if (assetType == FONT)
       {
@@ -1017,7 +1018,8 @@ class PolymodAssetLibrary
 
         if (font == null)
         {
-          font = Font.fromBytes(fileSystem.getFileBytes(file(f, redirectPath)));
+          var fileBytes:Null<Bytes> = fileSystem.getFileBytes(file(f, redirectPath));
+          font = fileBytes != null ? Font.fromBytes(fileBytes) : null;
         }
 
         if (font != null)
@@ -1032,7 +1034,9 @@ class PolymodAssetLibrary
       }
       #end
     }
-    var keyCount = typeLibraries.get(libraryId).length;
+    // Can't be null: we assign an empty array if libraryId is not found
+    //@:nullSafety(Off)
+    var keyCount = typeLibraries[libraryId].length;
     Polymod.info(ASSET_REDIRECT_DONE, 'Done loading core asset redirect $redirectPath ($keyCount keys)', INIT);
 
     buildAllFilesCache();

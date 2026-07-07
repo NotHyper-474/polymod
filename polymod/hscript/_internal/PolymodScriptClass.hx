@@ -29,7 +29,7 @@ class PolymodScriptClass
    * Provide a class name along with a corresponding class to override imports.
    * You can set the value to `null` to prevent the class from being imported.
    */
-  public static final importOverrides:Map<String, Class<Dynamic>> = new Map<String, Class<Dynamic>>();
+  public static final importOverrides:Map<String, Null<Class<Dynamic>>> = [];
 
   /**
    * Provide a class name along with a corresponding class to import it in every scripted class.
