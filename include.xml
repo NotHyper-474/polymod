@@ -6,6 +6,8 @@
   <haxelib name="thx.core" />
   <haxelib name="thx.semver" />
 
-  <haxeflag name="--macro" value="polymod.hscript._internal.PolymodFinalMacro.locateAllFinals()" />
-  <haxeflag name="--macro" value="addGlobalMetadata('', '@:build(polymod.hscript._internal.PolymodBaseClassMacro.buildBaseClass())')"/>
+  <!--
+    Macro flags should go into the "extraParams" file instead of here
+    so that they are able to work when using libraries like Heaps.
+  -->
 </project>
