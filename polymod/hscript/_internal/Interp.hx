@@ -696,8 +696,8 @@ class Interp
       haxe.Log.trace(Std.string(v), inf);
     }));
 
-    variables.set("Math", #if hl polymod.hscript._internal.HLWrapperMacro.HLMath #else Math #end);
-    variables.set("Std", #if hl polymod.hscript._internal.HLWrapperMacro.HLStd #else Std #end);
+    variables.set("Math", Math);
+    variables.set("Std", Std);
 
     variables.set("Array", Array);
     variables.set("Bool", Bool);
