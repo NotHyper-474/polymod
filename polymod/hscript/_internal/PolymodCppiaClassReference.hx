@@ -53,6 +53,7 @@ class PolymodCppiaClassReference extends PolymodStaticClassReference
   {
     // Only the active registry is dropped. What was loaded stays known, because it cannot be undone.
     registry.clear();
+    Interp.registryStamp++;
     reportedMismatch = false;
   }
 
@@ -487,6 +488,7 @@ class PolymodCppiaClassReference extends PolymodStaticClassReference
       for (i in 0...previous.names.length)
       {
         registry.set(previous.names[i], previous.refs[i]);
+        Interp.registryStamp++;
         everProvided.set(previous.names[i], true);
       }
 
@@ -680,6 +682,7 @@ class PolymodCppiaClassReference extends PolymodStaticClassReference
       }
 
       registry.set(name, cls);
+      Interp.registryStamp++;
       everProvided.set(name, true);
       registered.push(name);
       registeredRefs.push(cls);

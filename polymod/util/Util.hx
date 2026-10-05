@@ -758,6 +758,11 @@ class Util
 
   public static function getTypeNameOf(obj:Dynamic):String
   {
+    #if cpp
+    var direct:Null<Class<Dynamic>> = Type.getClass(obj);
+    if (direct != null) return Type.getClassName(direct);
+    #end
+
     var type = Type.typeof(obj);
     return switch (type)
     {

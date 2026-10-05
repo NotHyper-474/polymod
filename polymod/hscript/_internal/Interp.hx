@@ -54,6 +54,48 @@ class Interp
   private static var _scriptClassUsings:Map<String, Array<ClassImport>> = new Map<String, Array<ClassImport>>();
   private static var _scriptClassDescriptors:Map<String, ClassDecl> = new Map<String, ClassDecl>();
   private static var _scriptEnumDescriptors:Map<String, EnumDecl> = new Map<String, EnumDecl>();
+
+  public static var registryStamp:Int = 0;
+
+  var _plainIds:Map<String, Bool> = new Map<String, Bool>();
+  var _plainDecl:Null<ClassDecl> = null;
+  var _missedPaths:Map<String, Bool> = new Map<String, Bool>();
+  var _enumIdents:Map<String, Dynamic> = new Map<String, Dynamic>();
+  var _enumNames:Map<String, Array<String>> = new Map<String, Array<String>>();
+  var _lookupStamp:Int = -1;
+
+  inline function freshLookups():Void
+  {
+    if (_lookupStamp != registryStamp)
+    {
+      _lookupStamp = registryStamp;
+      _plainIds.clear();
+      _missedPaths.clear();
+      _enumIdents.clear();
+      _enumNames.clear();
+    }
+  }
+
+  function startsAtValue(e:Expr):Bool
+  {
+    var at:Expr = e;
+    while (true)
+    {
+      switch (Tools.expr(at))
+      {
+        case EField(sub, _):
+          at = sub;
+        case EIdent(id):
+          if (id == "this" || id == "super") return true;
+          if (locals.exists(id) || variables.exists(id)) return true;
+          @:privateAccess
+          return _proxy != null && _proxy.findVar(id, true) != null;
+        default:
+          return true;
+      }
+    }
+    return false;
+  }
   private static var _scriptInterfaceDescriptors:Map<String, InterfaceDecl> = new Map<String, InterfaceDecl>();
 
   static var allowMetadataControlList:Map<String, ClassAccessControl> = [];
@@ -291,6 +333,57 @@ class Interp
     }
   }
 
+  function tryUsingFallback(o:Dynamic, f:String, args:Array<Dynamic>):Dynamic
+  {
+    if (o is PolymodEnum)
+    {
+      var e = cast(o, PolymodEnum);
+      if (e.usingFunctionsCache.exists(f))
+      {
+        return e.usingFunctionsCache[f]([o].concat(args));
+      }
+      return null;
+    }
+
+    @:privateAccess
+    if (_proxy?._cachedUsingFunctions.exists(f) ?? false)
+    {
+      return _proxy._cachedUsingFunctions[f]([o].concat(args));
+    }
+    else if (_classDeclOverride != null)
+    {
+      var usingFuncs:Map<String, Array<Dynamic>->Dynamic> = [];
+      PolymodScriptClass.buildExtensionFunctionCache(_classDeclOverride, usingFuncs);
+
+      if (usingFuncs.exists(f))
+      {
+        return usingFuncs[f]([o].concat(args));
+      }
+    }
+    return null;
+  }
+
+  function hasUsingFallback(o:Dynamic, f:String):Bool
+  {
+    if (o is PolymodEnum)
+    {
+      return cast(o, PolymodEnum).usingFunctionsCache.exists(f);
+    }
+
+    @:privateAccess
+    if (_proxy?._cachedUsingFunctions.exists(f) ?? false)
+      return true;
+
+    if (_classDeclOverride != null)
+    {
+      var usingFuncs:Map<String, Array<Dynamic>->Dynamic> = [];
+      PolymodScriptClass.buildExtensionFunctionCache(_classDeclOverride, usingFuncs);
+
+      return usingFuncs.exists(f);
+    }
+    return false;
+  }
+
   /**
    * Note to self: Calls to `this.xyz()` will have the type of `o` as `polymod.hscript.PolymodScriptClass`.
    * Calls to `super.xyz()` will have the type of `o` as `stage.ScriptedStage`.
@@ -303,63 +396,12 @@ class Interp
       return PolymodScriptClass.isOfType(args[0], args[1]);
     }
 
-    var tryUsingFallback = function():Dynamic
-    {
-      if (o is PolymodEnum)
-      {
-        var e = cast(o, PolymodEnum);
-        if (e.usingFunctionsCache.exists(f))
-        {
-          return e.usingFunctionsCache[f]([o].concat(args));
-        }
-        return null;
-      }
-
-      @:privateAccess
-      if (_proxy?._cachedUsingFunctions.exists(f) ?? false)
-      {
-        return _proxy._cachedUsingFunctions[f]([o].concat(args));
-      }
-      else if (_classDeclOverride != null)
-      {
-        var usingFuncs:Map<String, Array<Dynamic>->Dynamic> = [];
-        PolymodScriptClass.buildExtensionFunctionCache(_classDeclOverride, usingFuncs);
-
-        if (usingFuncs.exists(f))
-        {
-          return usingFuncs[f]([o].concat(args));
-        }
-      }
-      return null;
-    };
-
-    var hasUsingFallback = function():Bool
-    {
-      if (o is PolymodEnum)
-      {
-        return cast(o, PolymodEnum).usingFunctionsCache.exists(f);
-      }
-
-      @:privateAccess
-      if (_proxy?._cachedUsingFunctions.exists(f) ?? false)
-        return true;
-
-      if (_classDeclOverride != null)
-      {
-        var usingFuncs:Map<String, Array<Dynamic>->Dynamic> = [];
-        PolymodScriptClass.buildExtensionFunctionCache(_classDeclOverride, usingFuncs);
-
-        return usingFuncs.exists(f);
-      }
-      return false;
-    };
-
     // OVERRIDE CHANGE: Custom logic to handle super calls to prevent infinite recursion
     if (_proxy != null && o == _proxy.superClass && !Std.isOfType(o, PolymodScriptClass))
     {
-      if (_proxy.findSuperFunction(f) == null && hasUsingFallback())
+      if (_proxy.findSuperFunction(f) == null && hasUsingFallback(o, f))
       {
-        return tryUsingFallback();
+        return tryUsingFallback(o, f, args);
       }
 
       // Force call super function.
@@ -395,7 +437,7 @@ class Interp
       }
       catch (e:Dynamic)
       {
-        if (hasUsingFallback()) return tryUsingFallback();
+        if (hasUsingFallback(o, f)) return tryUsingFallback(o, f, args);
       }
       return ref.callFunction(f, args);
     }
@@ -404,7 +446,7 @@ class Interp
       var ref:PolymodStaticClassReference = cast(o, PolymodStaticClassReference);
       if (!PolymodScriptClass.hasScriptClassStaticFunction(ref.getFullyQualifiedName(), f))
       {
-        if (hasUsingFallback()) return tryUsingFallback();
+        if (hasUsingFallback(o, f)) return tryUsingFallback(o, f, args);
       }
       return ref.callFunction(f, args);
     }
@@ -412,13 +454,13 @@ class Interp
     {
       _nextCallObject = null;
       var proxy:PolymodScriptClass = cast(o, PolymodScriptClass);
-      if (!proxy.hasFunction(f) && hasUsingFallback()) return tryUsingFallback();
+      if (!proxy.hasFunction(f) && hasUsingFallback(o, f)) return tryUsingFallback(o, f, args);
       return proxy.callFunction(f, args);
     }
     else if (Std.isOfType(o, PolymodEnum))
     {
-      if (hasUsingFallback())
-        return tryUsingFallback();
+      if (hasUsingFallback(o, f))
+        return tryUsingFallback(o, f, args);
     }
 
     var er:Null<Error> = null;
@@ -437,7 +479,7 @@ class Interp
       return call(o, func, args);
     }
 
-    if (hasUsingFallback()) return tryUsingFallback();
+    if (hasUsingFallback(o, f)) return tryUsingFallback(o, f, args);
 
     #if html5
     // Workaround for an HTML5-specific issue.
@@ -500,7 +542,7 @@ class Interp
   {
     // If we are calling this.fn(), special handling is needed to prevent the local scope from being destroyed.
     // Store the local scope.
-    var capturedLocals = this.duplicate(locals);
+    var capturedLocals = this.locals;
     var capturedDeclared = this.declared;
     var capturedDepth = this.depth;
 
@@ -780,6 +822,7 @@ class Interp
     {
       Polymod.debug('Registering scripted class $name');
       _scriptClassDescriptors.set(name, c);
+      registryStamp++;
     }
     registerDeprecatedFields(name);
   }
@@ -803,6 +846,7 @@ class Interp
     {
       Polymod.debug('Registering scripted interface $name');
       _scriptInterfaceDescriptors.set(name, i);
+      registryStamp++;
       registerDeprecatedFields(name);
     }
   }
@@ -828,6 +872,7 @@ class Interp
     {
       Polymod.debug('Registering scripted enum $name');
       _scriptEnumDescriptors.set(name, e);
+      registryStamp++;
       registerDeprecatedFields(name);
     }
   }
@@ -921,6 +966,7 @@ class Interp
 
     // Clear the script class descriptors.
     _scriptClassDescriptors.clear();
+    registryStamp++;
 
     _cachedDeprecatedTypes = [];
     _cachedDeprecatedFields = [];
@@ -944,6 +990,7 @@ class Interp
     // Do this first since scripted interfaces are checked through their scripted decls.
     PolymodStaticInterfaceReference.clearScriptedInterfaces();
     _scriptInterfaceDescriptors.clear();
+    registryStamp++;
 
     // Also clear the imports from the import.hx files.
     _scriptClassImports.clear();
@@ -957,6 +1004,7 @@ class Interp
   {
     // Clear the script enum descriptors.
     _scriptEnumDescriptors.clear();
+    registryStamp++;
 
     // Also destroy local variable scope.
     this.resetVariables();
@@ -1602,7 +1650,7 @@ class Interp
   public function executeFunction(fn:FunctionDecl, fnName:String, args:Array<Dynamic>):Dynamic
   {
     var oldDepth:Int = this.depth;
-    var oldLocals = this.duplicate(locals);
+    var oldLocals = this.locals;
     var oldDeclared = this.declared;
     var oldCurrentFunction = this.currentFunction;
 
@@ -1813,30 +1861,42 @@ class Interp
     }
     else
     {
-      // Try to retrieve a scripted class with this name in the same package.
-      if (getClassDecl().pkg != null && getClassDecl().pkg.length > 0)
+      freshLookups();
+      if (_plainDecl != getClassDecl())
       {
-        var localClassId = getClassDecl().pkg.join('.') + "." + id;
-
-        var enumResult:Null<String> = PolymodEnum.tryResolve(localClassId);
-        if (enumResult != null) return enumResult;
-
-        var resultInterface = PolymodStaticInterfaceReference.tryBuild(localClassId);
-        if (resultInterface != null) return resultInterface;
-
-        var result = PolymodStaticClassReference.tryBuild(localClassId);
-        if (result != null) return result;
+        _plainDecl = getClassDecl();
+        _plainIds.clear();
       }
 
-      var enumResult:Null<String> = PolymodEnum.tryResolve(id);
-      if (enumResult != null) return enumResult;
+      if (!_plainIds.exists(id))
+      {
+        // Try to retrieve a scripted class with this name in the same package.
+        if (getClassDecl().pkg != null && getClassDecl().pkg.length > 0)
+        {
+          var localClassId = getClassDecl().pkg.join('.') + "." + id;
 
-      var resultInterface = PolymodStaticInterfaceReference.tryBuild(id);
-      if (resultInterface != null) return resultInterface;
+          var enumResult:Null<String> = PolymodEnum.tryResolve(localClassId);
+          if (enumResult != null) return enumResult;
 
-      // Try to retrieve a scripted class with this name in the base package.
-      var result = PolymodStaticClassReference.tryBuild(id);
-      if (result != null) return result;
+          var resultInterface = PolymodStaticInterfaceReference.tryBuild(localClassId);
+          if (resultInterface != null) return resultInterface;
+
+          var result = PolymodStaticClassReference.tryBuild(localClassId);
+          if (result != null) return result;
+        }
+
+        var enumResult:Null<String> = PolymodEnum.tryResolve(id);
+        if (enumResult != null) return enumResult;
+
+        var resultInterface = PolymodStaticInterfaceReference.tryBuild(id);
+        if (resultInterface != null) return resultInterface;
+
+        // Try to retrieve a scripted class with this name in the base package.
+        var result = PolymodStaticClassReference.tryBuild(id);
+        if (result != null) return result;
+
+        _plainIds.set(id, true);
+      }
     }
 
     if (_proxy != null)
@@ -1896,15 +1956,26 @@ class Interp
 
     if (getClassDecl() != null)
     {
+      freshLookups();
+      if (_enumIdents.exists(id)) return _enumIdents.get(id);
+
       // Try to resolve enum constructors from imported enums.
       for (imp in getClassDecl().imports)
       {
         if (imp.enm != null)
         {
           var enm = imp.enm;
-          if (Type.getEnumConstructs(enm).contains(id))
+          var names:Null<Array<String>> = _enumNames.get(imp.fullPath);
+          if (names == null)
           {
-            return get(enm, id);
+            names = Type.getEnumConstructs(enm);
+            _enumNames.set(imp.fullPath, names);
+          }
+          if (names.contains(id))
+          {
+            var found:Dynamic = get(enm, id);
+            _enumIdents.set(id, found);
+            return found;
           }
         }
         else if (_scriptEnumDescriptors.exists(imp.fullPath))
@@ -2124,9 +2195,9 @@ class Interp
         restore(old);
         return v;
       case EField(e, f):
-        var name = dottedPath(e);
-        name = getClassDecl().imports.get(name)?.fullPath ?? name;
-        if ( _scriptEnumDescriptors.exists(name))
+        var name = startsAtValue(e) ? null : dottedPath(e);
+        if (name != null) name = getClassDecl().imports.get(name)?.fullPath ?? name;
+        if (name != null && _scriptEnumDescriptors.exists(name))
         {
           checkTypeForDeprecation(name);
           return PolymodEnum.tryBuild(name, f);
@@ -2174,15 +2245,23 @@ class Interp
                 fullPath = name;
               }
             }
-            else
+            else if (!startsAtValue(e))
             {
               fullPath = dottedPath(e);
               if (fullPath != null)
               {
-                var resolvedPath = resolveDottedPath(fullPath);
-                if (resolvedPath is PolymodStaticAbstractReference)
+                freshLookups();
+                if (!_missedPaths.exists(fullPath))
                 {
-                  abs = resolvedPath;
+                  var resolvedPath = resolveDottedPath(fullPath);
+                  if (resolvedPath is PolymodStaticAbstractReference)
+                  {
+                    abs = resolvedPath;
+                  }
+                  else if (resolvedPath == null)
+                  {
+                    _missedPaths.set(fullPath, true);
+                  }
                 }
               }
             }
@@ -4460,6 +4539,7 @@ class Interp
               Polymod.error(SCRIPTED_CLASS_UNRESOLVED_IMPORT, 'Could not extend ${superClassPath}, do not include type parameters in super class name.', SCRIPT_RUNTIME);
 
               _scriptInterfaceDescriptors.remove(interfacePath);
+              registryStamp++;
               break;
             }
             baseInterfaceName = path[path.length - 1];
@@ -4472,6 +4552,7 @@ class Interp
               {
                 Polymod.error(SCRIPTED_CLASS_NOT_REGISTERED, 'Could not import ${superClassPath}. Check to ensure the module exists and is spelled correctly.', SCRIPT_RUNTIME);
                 _scriptInterfaceDescriptors.remove(interfacePath);
+              registryStamp++;
                 break;
               }
             }
@@ -4485,6 +4566,7 @@ class Interp
               {
                 Polymod.error(SCRIPTED_CLASS_UNRESOLVED_IMPORT, 'Interface $superClassPath has not been defined.', SCRIPT_RUNTIME);
                 _scriptInterfaceDescriptors.remove(interfacePath);
+              registryStamp++;
                 break;
               }
             }

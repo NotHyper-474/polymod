@@ -1368,6 +1368,7 @@ class Polymod
   public static function blacklistScriptClassImport(importPath:String):Void
   {
     PolymodScriptClass.blacklistedScriptClasses.push(importPath);
+    polymod.hscript._internal.Interp.registryStamp++;
   }
 
   /**

@@ -54,13 +54,21 @@ class PolymodEnum
       if (Interp._scriptEnumDescriptors.exists(id)) return id;
     }
 
-    @:privateAccess
-    for (fullEnumName => val in Interp._scriptEnumDescriptors)
+    else
     {
-      var splitPkg:Array<String> = fullEnumName.split('.');
-      var name:String = splitPkg[splitPkg.length - 1];
-
-      if (name == id) return fullEnumName;
+      @:privateAccess
+      for (fullEnumName in Interp._scriptEnumDescriptors.keys())
+      {
+        var at:Int = fullEnumName.length - id.length;
+        if (at == 0)
+        {
+          if (fullEnumName == id) return fullEnumName;
+        }
+        else if (at > 0 && StringTools.fastCodeAt(fullEnumName, at - 1) == '.'.code && StringTools.endsWith(fullEnumName, id))
+        {
+          return fullEnumName;
+        }
+      }
     }
     return null;
   }
