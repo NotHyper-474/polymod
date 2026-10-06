@@ -1,10 +1,11 @@
 package polymod.hscript._internal;
 
-import haxe.macro.Type.ClassField;
 #if macro
 import haxe.macro.Context;
 import haxe.macro.Expr;
 import haxe.macro.Type;
+import haxe.macro.Type.ClassField;
+import polymod.util.MacroUtil;
 #end
 
 @:nullSafety
@@ -105,6 +106,14 @@ class PolymodFinalMacro
   public static macro function locateAllFinals():Void
   {
     Context.onAfterTyping((types) -> {
+      #if !POLYMOD_SAMPLE_BUILD
+      if (MacroUtil.isNoOutput)
+      {
+        calledBefore = false;
+        return;
+      }
+      #end
+
       if (calledBefore) return;
 
       var startTime:Float = Sys.time();

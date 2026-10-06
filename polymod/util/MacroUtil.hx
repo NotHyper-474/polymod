@@ -7,6 +7,17 @@ import haxe.macro.Type;
 class MacroUtil
 {
   #if macro
+  /**
+   * Whether `--no-output` was passed to the compiler.
+   * Used to detect for Haxe's Compilation cache.
+   */
+  public static var isNoOutput(get, never):Bool;
+
+  static inline function get_isNoOutput():Bool
+  {
+    return Sys.args().indexOf('--no-output') >= 0;
+  }
+
   public static function listSuperInterfaces(classType:ClassType):Array<String>
   {
     if (!classType.isInterface) return [];

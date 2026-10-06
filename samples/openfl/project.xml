@@ -18,4 +18,5 @@
 	<assets path="assets/data" rename="data" />
 	<!-- Settings for Polymod -->
 	<haxedef name="POLYMOD_DEBUG" value="true" />
+	<haxedef name="POLYMOD_SAMPLE_BUILD" />
 </project>
