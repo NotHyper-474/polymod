@@ -213,7 +213,7 @@ class Printer
           {
             switch (Tools.expr(el[0]))
             {
-              case EVar(n, _, e) if (n.indexOf("__a_") == 0):
+              case EVar(n, _, e) if (n.indexOf("__sn_") == 0):
                 switch (Tools.expr(el[1]))
                 {
                   case ETernary(Tools.expr(_) => EBinop("==", _, _), _, e12):

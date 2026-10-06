@@ -1177,7 +1177,7 @@ class Parser
         return parseExprNext(mk(EField(e1, field), pmin(e1)));
       case TQuestionDot:
         var field:String = getIdent();
-        var tmp:String = "__a_" + (uid++);
+        var tmp:String = "__sn_" + (uid++);
         var t:Token = token();
         var ternaryRhs:ExprDef = switch (t)
         {
