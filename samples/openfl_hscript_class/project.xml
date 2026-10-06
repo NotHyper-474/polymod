@@ -17,6 +17,7 @@
 	<assets path="assets/data" rename="data" />
 	<!-- Settings for Polymod -->
 	<haxedef name="POLYMOD_DEBUG" value="true" />
+	<haxedef name="POLYMOD_SAMPLE_BUILD" />
 	<haxedef name="POLYMOD_SCRIPT_EXT" value=".hxs" />
 	<haxedef name="POLYMOD_SCRIPT_CLASS_EXT" value=".hxc" />
 	<haxedef name="hscriptPos" />

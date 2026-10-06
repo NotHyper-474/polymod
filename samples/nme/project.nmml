@@ -9,4 +9,5 @@
 	<assets path="Assets/data" rename="data" />
 	<icon path="Assets/nme.svg" />
 	<haxedef name="POLYMOD_DEBUG" value="true" />
+	<haxedef name="POLYMOD_SAMPLE_BUILD" />
 </project>

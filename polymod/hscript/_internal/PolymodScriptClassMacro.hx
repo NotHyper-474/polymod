@@ -105,6 +105,14 @@ class PolymodScriptClassMacro
 
   static function onGenerate(allTypes:Array<haxe.macro.Type>)
   {
+    #if !POLYMOD_SAMPLE_BUILD
+    if (MacroUtil.isNoOutput)
+    {
+      onGenerateCallbackRegistered = false;
+      return;
+    }
+    #end
+
     packageEntries.clear();
 
     // Reset these, since onGenerate persists across multiple builds.
@@ -342,6 +350,14 @@ class PolymodScriptClassMacro
 
   static function onAfterTyping(types:Array<ModuleType>):Void
   {
+    #if !POLYMOD_SAMPLE_BUILD
+    if (MacroUtil.isNoOutput)
+    {
+      onAfterTypingCallbackRegistered = false;
+      return;
+    }
+    #end
+
     var startTime:Float = Sys.time();
 
     var count:Int = 0;
