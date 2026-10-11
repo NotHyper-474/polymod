@@ -3650,7 +3650,6 @@ class Interp
     }
 
     var oCls:String = Util.getTypeNameOf(o);
-    #if hl oCls = oCls.replace('$', ''); #end
 
     #if POLYMOD_STRICT_SYNTAX
     if (!checkPrivateAccess(o, f))
@@ -3793,7 +3792,6 @@ class Interp
     if (o == null) error(ENullObjectReference(f));
 
     var oCls:String = Util.getTypeNameOf(o);
-    #if hl oCls = oCls.replace('$', ''); #end
 
     #if POLYMOD_STRICT_SYNTAX
     if (!checkPrivateAccess(o, f))
