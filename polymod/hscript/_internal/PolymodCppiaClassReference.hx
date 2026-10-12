@@ -186,6 +186,38 @@ class PolymodCppiaClassReference extends PolymodStaticClassReference
     return result;
   }
 
+  static function recordDependencies(loaded:LoadedCppiaModule, path:String, types:Array<String>):Void
+  {
+    var providers:Map<String, String> = new Map<String, String>();
+    for (otherPath => other in loadedModules)
+    {
+      if (otherPath == path) continue;
+      for (name in other.names)
+        providers.set(name, otherPath);
+    }
+
+    for (type in types)
+    {
+      var name:String = normalizeTypeName(type);
+      if (loaded.names.contains(name)) continue;
+
+      var from:Null<String> = providers.get(name);
+      if (from == null || loaded.dependencies.exists(from)) continue;
+
+      loaded.dependencies.set(from, loadedModules.get(from).serial);
+    }
+  }
+
+  static function dependenciesUnchanged(loaded:LoadedCppiaModule):Bool
+  {
+    for (path => serial in loaded.dependencies)
+    {
+      var now:Null<LoadedCppiaModule> = loadedModules.get(path);
+      if (now == null || now.serial != serial) return false;
+    }
+    return true;
+  }
+
   /**
    * The names a compiled script may not reference.
    */
@@ -482,7 +514,7 @@ class PolymodCppiaClassReference extends PolymodStaticClassReference
     var signature:String = signatureOf(data);
     var previous:LoadedCppiaModule = loadedModules.get(path);
 
-    if (previous != null && previous.signature == signature)
+    if (previous != null && previous.signature == signature && dependenciesUnchanged(previous))
     {
       // Same bytes as last time. Put the classes we already have back in the registry.
       for (i in 0...previous.names.length)
@@ -694,7 +726,9 @@ class PolymodCppiaClassReference extends PolymodStaticClassReference
       loadedModules.remove(path);
     }
 
-    loadedModules.set(path, new LoadedCppiaModule(signature, registered, registeredRefs, module));
+    var loaded:LoadedCppiaModule = new LoadedCppiaModule(signature, registered, registeredRefs, module);
+    recordDependencies(loaded, path, types);
+    loadedModules.set(path, loaded);
 
     trace('[cppia] loaded "$path" providing ${registered.join(", ")}, declaring ${moduleClasses.join(", ")}');
 
@@ -837,6 +871,12 @@ private class LoadedCppiaModule
   public final signature:String;
   public final names:Array<String>;
   public final refs:Array<Class<Dynamic>>;
+
+  // Scripts loaded for byte matching
+  public final serial:Int = ++loadCount;
+
+  static var loadCount:Int = 0;
+  public final dependencies:Map<String, Int> = new Map<String, Int>();
 
   #if (hxcpp && POLYMOD_CPPIA)
   var module:Null<cpp.cppia.Module>;
