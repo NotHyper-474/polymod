@@ -218,11 +218,14 @@ class ScriptPreheater
           preheatWalk(body, owner, ownerName, isStatic, scope, assigned, issues, stats);
           return true;
         });
-      case ETry(body, name, _, handler):
+      case ETry(body, catches):
         preheatWalk(body, owner, ownerName, isStatic, locals, assigned, issues, stats);
-        var scope = preheatCopyLocals(locals);
-        scope.set(name, true);
-        preheatWalk(handler, owner, ownerName, isStatic, scope, assigned, issues, stats);
+        for (catcher in catches)
+        {
+          var scope = preheatCopyLocals(locals);
+          scope.set(catcher.name, true);
+          preheatWalk(catcher.e, owner, ownerName, isStatic, scope, assigned, issues, stats);
+        }
       case EArray(target, index):
         preheatWalk(target, owner, ownerName, isStatic, locals, assigned, issues, stats, true);
         preheatWalk(index, owner, ownerName, isStatic, locals, assigned, issues, stats);
