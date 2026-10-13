@@ -1175,7 +1175,7 @@ class PolymodAssetLibrary
 
     for (pattern in ignoredFiles)
     {
-      if (Util.uIndexOf(idStripped, pattern) == 0 || Util.uIndexOf(idPrepend, pattern) == 0)
+      if (Util.uIndexOf(idStripped, pattern) == 0 || Util.uIndexOf(idPrepend, pattern) == 0 || Util.uIndexOf(idStripped, '/$pattern') != -1)
       {
         ignoredFilesCache.set(id, true);
         return true;
