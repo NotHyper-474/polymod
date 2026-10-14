@@ -2673,6 +2673,15 @@ class Interp
             default:
               var fullPath:String = path.join('.');
               var obj:Any = resolveDottedPath(fullPath);
+              if (obj == null && getClassDecl()?.imports.exists(fullPath))
+              {
+                var imp:ClassImport = getClassDecl().imports.get(fullPath);
+                if (imp.cls == null && imp.enm == null && imp.abs == null)
+                {
+                  error(EBlacklistedModule(fullPath));
+                }
+                obj = imp.enm;
+              }
               if (obj is Enum)
               {
                 return new haxe.ds.EnumValueMap<Dynamic, Dynamic>();
@@ -2683,7 +2692,7 @@ class Interp
               }
           }
         }
-      case CTAnon([]):
+      case CTAnon(_):
         return new Map<{}, Dynamic>();
       default:
         // Whatever.
