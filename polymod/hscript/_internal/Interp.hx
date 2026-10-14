@@ -2740,19 +2740,8 @@ class Interp
         default:
       }
     }
-    else
-    {
-      if (hasMapElements)
-      {
-        return exprMap(entries);
-      }
-      else
-      {
-        return exprArray(entries);
-      }
-    }
 
-    return null;
+    return hasMapElements ? exprMap(entries) : exprArray(entries);
   }
 
   inline function exprArray(entries:Array<Expr>):Array<Dynamic>
