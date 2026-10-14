@@ -2561,13 +2561,8 @@ class Interp
             }
             catch (e:Stop)
             {
-              switch (e)
-              {
-                case SContinue:
-                  restore(old);
-                  throw e;
-                default:
-              }
+              restore(old);
+              throw e;
             }
             restore(old);
             break;
@@ -2580,13 +2575,9 @@ class Interp
         }
         catch (e:Stop)
         {
-          switch (e)
-          {
-            case SContinue:
-              restore(old);
-              throw e;
-            default:
-          }
+          // See above, always rethrow so `return`/`break`/`continue` propagate out of the switch.
+          restore(old);
+          throw e;
         }
         restore(old);
         return val;
