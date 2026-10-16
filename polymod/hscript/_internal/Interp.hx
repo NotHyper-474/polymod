@@ -1510,6 +1510,7 @@ class Interp
           }
         }
 
+        
         // Fallback to local variable
         var l = locals.get(id);
         v = fop(expr(e1), expr(e2));
@@ -1517,9 +1518,19 @@ class Interp
         {
           return error(EInvalidAccess(id));
         }
-        if (l == null) setVar(id, v)
+        if (l == null)
+        {
+          setVar(id, v);
+        }
         else
+        {
+          if (l.isstatic)
+          {
+            var fullName = '${getClassFullyQualifiedName()}#${this.currentFunction}#$id';
+            PolymodScriptClass.scriptInterp.variables.set(fullName, v);
+          }
           l.r = v;
+        }
       case EField(e, f):
         var obj = fieldTarget(e);
         v = fop(get(obj, f), expr(e2));
@@ -1608,17 +1619,40 @@ class Interp
 
         var l = locals.get(id);
         var v:Dynamic = (l == null) ? resolve(id) : l.r;
+        
         if (l != null && l.isfinal && l.r != null) return error(EInvalidFinalSet(id));
+
         if (prefix)
         {
           v += delta;
-          if (l == null) setVar(id, v)
+          if (l == null)
+            setVar(id, v);
           else
+          {
+            if (l.isstatic)
+            {
+              var fullName = '${getClassFullyQualifiedName()}#${this.currentFunction}#$id';
+              PolymodScriptClass.scriptInterp.variables.set(fullName, v);
+            }
             l.r = v;
+          }
         }
-        else if (l == null) setVar(id, v + delta)
         else
-          l.r = v + delta;
+        {
+          var newVal = v + delta;
+          if (l == null)
+            setVar(id, newVal);
+          else
+          {
+            if (l.isstatic)
+            {
+              var fullName = '${getClassFullyQualifiedName()}#${this.currentFunction}#$id';
+              PolymodScriptClass.scriptInterp.variables.set(fullName, newVal);
+            }
+            l.r = newVal;
+          }
+        }
+        return v;
         return v;
       case EField(e, f):
         var obj = fieldTarget(e);
@@ -2237,13 +2271,13 @@ class Interp
 
               if (id != null)
               {
-                if (locals.exists(id) && !locals.get(name).isstatic)
+                if (locals.exists(id) && !(locals.get(id).isstatic ?? false))
                 {
                   error(EInvalidStaticLocalInit(varName, 'cannot use local variable "$id" as an initializer'));
                 }
                 else if (_proxy != null)
                 {
-                  if (id == "this")
+                  if (id == "this" || id == "super")
                   {
                     error(EInvalidStaticLocalInit(varName, 'cannot use "this" as initialization'));
                   }
@@ -2282,7 +2316,8 @@ class Interp
 
         locals.set(name, {
           r: result,
-          isfinal: Std.isOfType(Tools.expr(e), EFinal)
+          isfinal: Std.isOfType(Tools.expr(e), EFinal),
+          isstatic: false
         });
         
         return null;
