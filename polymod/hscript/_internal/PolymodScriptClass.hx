@@ -11,6 +11,7 @@ import polymod.hscript._internal.Expr.FunctionDecl;
 import polymod.hscript._internal.Expr.VarDecl;
 import polymod.hscript._internal.Printer;
 import polymod.util.Util;
+import polymod.util.ThreadSafety.SafeMap;
 
 using Lambda;
 using StringTools;
@@ -100,7 +101,7 @@ class PolymodScriptClass
   /**
    * Class name to every blacklisted instance field it has, inherited ones included.
    */
-  static var resolvedInstanceFields:Map<String, Array<String>> = new Map<String, Array<String>>();
+  static var resolvedInstanceFields:SafeMap<Array<String>> = new SafeMap<Array<String>>();
 
   /**
    * Throw away everything derived from the blacklists. Call after changing one.
@@ -1346,7 +1347,7 @@ class PolymodScriptClass
       var extendName:String = new Printer().typeToString(implement);
       if (extendName.indexOf('<') != -1)
         extendName = extendName.split('<')[0];
-      
+
       var interfacePath:String = _c.imports.get(extendName)?.fullPath ?? extendName;
 
       // Attempt to resolve the interface.

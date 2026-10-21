@@ -22,10 +22,11 @@
 
 package polymod.hscript._internal;
 
-import polymod.hscript._internal.Expr;
-import polymod.util.Util;
-import haxe.PosInfos;
 import haxe.Constraints.IMap;
+import haxe.PosInfos;
+import polymod.hscript._internal.Expr;
+import polymod.util.ThreadSafety.SafeMap;
+import polymod.util.Util;
 
 using Lambda;
 using StringTools;
@@ -50,10 +51,10 @@ class Interp
   var _classDeclOverride:ClassDecl = null;
   var targetCls:Class<Dynamic>;
 
-  private static var _scriptClassImports:Map<String, Array<ClassImport>> = new Map<String, Array<ClassImport>>();
-  private static var _scriptClassUsings:Map<String, Array<ClassImport>> = new Map<String, Array<ClassImport>>();
-  private static var _scriptClassDescriptors:Map<String, ClassDecl> = new Map<String, ClassDecl>();
-  private static var _scriptEnumDescriptors:Map<String, EnumDecl> = new Map<String, EnumDecl>();
+  private static var _scriptClassImports:SafeMap<Array<ClassImport>> = new SafeMap<Array<ClassImport>>();
+  private static var _scriptClassUsings:SafeMap<Array<ClassImport>> = new SafeMap<Array<ClassImport>>();
+  private static var _scriptClassDescriptors:SafeMap<ClassDecl> = new SafeMap<ClassDecl>();
+  private static var _scriptEnumDescriptors:SafeMap<EnumDecl> = new SafeMap<EnumDecl>();
 
   public static var registryStamp:Int = 0;
 
@@ -96,17 +97,18 @@ class Interp
     }
     return false;
   }
-  private static var _scriptInterfaceDescriptors:Map<String, InterfaceDecl> = new Map<String, InterfaceDecl>();
 
-  static var allowMetadataControlList:Map<String, ClassAccessControl> = [];
-  static var accessMetadataControlList:Map<String, ClassAccessControl> = [];
+  static var _scriptInterfaceDescriptors:SafeMap<InterfaceDecl> = new SafeMap<InterfaceDecl>();
 
-  static var _scriptPersistentFields:Map<String, Map<String, Dynamic>> = [];
+  static var allowMetadataControlList:SafeMap<ClassAccessControl> = new SafeMap<ClassAccessControl>();
+  static var accessMetadataControlList:SafeMap<ClassAccessControl> = new SafeMap<ClassAccessControl>();
 
-  static var _classDeclUsingCache:Map<String, Map<String, Array<Dynamic>->Dynamic>> = [];
+  static var _scriptPersistentFields:SafeMap<Map<String, Dynamic>> = new SafeMap<Map<String, Dynamic>>();
 
-  static var _deprecatedTypes:Map<String, String> = [];
-  static var _deprecatedFields:Map<String, Map<String, String>> = [];
+  static var _classDeclUsingCache:SafeMap<Map<String, Array<Dynamic>->Dynamic>> = new SafeMap<Map<String, Array<Dynamic>->Dynamic>>();
+
+  static var _deprecatedTypes:SafeMap<String> = new SafeMap<String>();
+  static var _deprecatedFields:SafeMap<Map<String, String>> = new SafeMap<Map<String, String>>();
 
   var _cachedDeprecatedTypes:Array<String> = [];
   var _cachedDeprecatedFields:Map<String, Array<String>> = [];
@@ -925,7 +927,7 @@ class Interp
   private static function registerImportForPackage(pkg:Null<Array<String>>, imp:ClassImport, isUsing:Bool = false)
   {
     var impFilePkg:String = pkg?.join(".") ?? "";
-    var map:Map<String, Array<ClassImport>> = isUsing ? _scriptClassUsings : _scriptClassImports;
+    var map:SafeMap<Array<ClassImport>> = isUsing ? _scriptClassUsings : _scriptClassImports;
 
     if (!map.exists(impFilePkg))
     {
@@ -4439,7 +4441,7 @@ class Interp
       {
         case ':allow', ':access':
           // These metadata will control class private field access without an error being thrown.
-          var listToUse:Map<String, ClassAccessControl> = meta.name == ':allow' ? allowMetadataControlList : accessMetadataControlList;
+          var listToUse:SafeMap<ClassAccessControl> = meta.name == ':allow' ? allowMetadataControlList : accessMetadataControlList;
 
           var accessData:ClassAccessControl = listToUse.get(clsName) ?? {cls: null, fields: null};
           var accessControl:AccessControl = parseAccessMetadata(clsDecl, meta);
@@ -4517,7 +4519,7 @@ class Interp
                 if (meta.name == ':access') continue;
               default:
             }
-            var listToUse:Map<String, ClassAccessControl> = meta.name == ':allow' ? allowMetadataControlList : accessMetadataControlList;
+            var listToUse:SafeMap<ClassAccessControl> = meta.name == ':allow' ? allowMetadataControlList : accessMetadataControlList;
 
             var accessData:ClassAccessControl = listToUse.get(clsName) ?? {cls: null, fields: null};
             var accessControl:AccessControl = parseAccessMetadata(clsDecl, meta);
@@ -4528,7 +4530,7 @@ class Interp
               if (accessControl.pkg != null)
               {
                 var fieldAccessData = accessData.fields.get(field.name) ?? {access: null, pkg: null, interfacePackage: null};
-                var fieldPkgControl = fieldAccessData.pkg ?? new Array<String>();
+                var fieldPkgControl = fieldAccessData.pkg ?? [];
 
                 for (pack in accessControl.pkg)
                 {
@@ -4545,7 +4547,7 @@ class Interp
                 var fieldAccessControl = fieldAccessData.access ?? new Map<String, Array<String>>();
                 for (cls => fields in accessControl.access)
                 {
-                  var fieldsList:Array<String> = fieldAccessControl.get(cls) ?? new Array<String>();
+                  var fieldsList:Array<String> = fieldAccessControl.get(cls) ?? [];
                   if (fields != null)
                   {
                     for (f in fields)
